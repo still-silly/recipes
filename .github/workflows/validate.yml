@@ -13,23 +13,22 @@ jobs:
   recipes:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
+      - uses: actions/checkout@v6
       - name: Install pinned CookCLI
-        run: bash scripts/install-cook.sh
-      - name: Validate and render
-        run: python3 scripts/build.py
-      - name: Check generated views are current
         run: |
-          git diff --exit-code -- docs rendered
-          test -z "$(git ls-files --others --exclude-standard docs rendered)"
+          curl -fsSL https://github.com/cooklang/cookcli/releases/download/v0.41.1/cook-0.41.1-linux-x86_64-musl.tar.gz -o "$RUNNER_TEMP/cook.tar.gz"
+          echo "342378f8121ba8b12cb13654119348860001bb3ab07ca00ba65f59ad00b51354  $RUNNER_TEMP/cook.tar.gz" | sha256sum --check --status
+          tar -xzf "$RUNNER_TEMP/cook.tar.gz" -C "$RUNNER_TEMP" cook
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: Validate recipes
+        run: cook doctor validate --base-path recipes --strict
+      - name: Build default CookCLI site
+        run: cook build web "$RUNNER_TEMP/site" --base-path recipes --base-url /recipes/ --repo-url "https://github.com/${{ github.repository }}"
       - name: Upload website
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4
         with:
-          path: docs
+          path: ${{ runner.temp }}/site
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: recipes
